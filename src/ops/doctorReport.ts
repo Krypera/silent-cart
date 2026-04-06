@@ -12,8 +12,11 @@ export interface DoctorSnapshot {
   daemonHeight: number | null;
   daemonTargetHeight: number | null;
   lastSuccessfulScanAt: string | null;
+  lastFulfilledOrderAt: string | null;
   pendingOrderCount: number | null;
   underpaidOrderCount: number | null;
+  manualReviewCount: number | null;
+  failedFulfillmentCount: number | null;
 }
 
 export interface DoctorAssessment {
@@ -58,6 +61,14 @@ export function assessDoctorSnapshot(snapshot: DoctorSnapshot): DoctorAssessment
     warnings.push("There are underpaid orders waiting for operator attention.");
   }
 
+  if (snapshot.manualReviewCount !== null && snapshot.manualReviewCount > 0) {
+    warnings.push("Manual review queue is not empty.");
+  }
+
+  if (snapshot.failedFulfillmentCount !== null && snapshot.failedFulfillmentCount > 0) {
+    warnings.push("There are failed fulfillment records that may need operator intervention.");
+  }
+
   if (!snapshot.daemonConfigured) {
     warnings.push("MONEROD_RPC_URL is not configured; daemon sync checks are disabled.");
   }
@@ -93,8 +104,11 @@ export function renderDoctorReport(
     `Daemon height: ${snapshot.daemonHeight ?? "unknown"}`,
     `Daemon target height: ${snapshot.daemonTargetHeight ?? "unknown"}`,
     `Last successful scan: ${snapshot.lastSuccessfulScanAt ?? "never"}`,
+    `Last fulfilled order at: ${snapshot.lastFulfilledOrderAt ?? "never"}`,
     `Pending orders: ${snapshot.pendingOrderCount ?? "unknown"}`,
     `Underpaid orders: ${snapshot.underpaidOrderCount ?? "unknown"}`,
+    `Manual review queue: ${snapshot.manualReviewCount ?? "unknown"}`,
+    `Failed fulfillments: ${snapshot.failedFulfillmentCount ?? "unknown"}`,
     ""
   ];
 

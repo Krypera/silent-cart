@@ -1,6 +1,6 @@
 import { Markup, type Telegraf } from "telegraf";
 import type { AppServices } from "../../app/services.js";
-import type { PricingMode, ProductType } from "../../domain/models.js";
+import { orderStates, type PricingMode, type ProductType } from "../../domain/models.js";
 import {
   addCancelRow,
   adminMenuKeyboard,
@@ -31,6 +31,145 @@ import {
 } from "../admin/wizard.js";
 import type { BotContext } from "../session.js";
 
+function getCommandArg(ctx: BotContext): string {
+  if (!ctx.message || !("text" in ctx.message)) {
+    return "";
+  }
+
+  const text = ctx.message.text.trim();
+  const firstSpace = text.indexOf(" ");
+  if (firstSpace < 0) {
+    return "";
+  }
+
+  return text.slice(firstSpace + 1).trim();
+}
+
+async function runOrderRecovery(ctx: BotContext, services: AppServices, orderId: string): Promise<void> {
+  if (!ctx.from) {
+    return;
+  }
+
+  const order = await services.orderService.getOrder(orderId);
+  const fulfillment = await services.store.fulfillments.findByOrderId(orderId);
+
+  if (fulfillment?.status === "manual_review") {
+    await services.fulfillmentEngine.resolveManualReview(orderId, BigInt(ctx.from.id), true);
+    await ctx.reply("Manual review recovery completed.", Markup.inlineKeyboard([[Markup.button.callback("View Order", `admin:order:view:${orderId}`)]]));
+    return;
+  }
+
+  if (order.state === "confirmed") {
+    const record = await services.fulfillmentEngine.fulfillOrder(orderId);
+    await ctx.reply(
+      record?.status === "delivered"
+        ? "Fulfillment retry completed successfully."
+        : "Recovery ran but delivery is still not complete. Check order details for status.",
+      Markup.inlineKeyboard([[Markup.button.callback("View Order", `admin:order:view:${orderId}`)]])
+    );
+    return;
+  }
+
+  if (order.state === "fulfilled") {
+    await services.fulfillmentEngine.redeliver(orderId, BigInt(ctx.from.id), true);
+    await ctx.reply(
+      "Order is already fulfilled. Re-delivery has been sent.",
+      Markup.inlineKeyboard([[Markup.button.callback("View Order", `admin:order:view:${orderId}`)]])
+    );
+    return;
+  }
+
+  await ctx.reply(
+    `No automatic recovery action is available from state "${order.state}".`,
+    Markup.inlineKeyboard([[Markup.button.callback("View Order", `admin:order:view:${orderId}`)]])
+  );
+}
+
+async function findProductByTerm(ctx: BotContext, services: AppServices, rawTerm: string): Promise<void> {
+  const term = rawTerm.trim().toLowerCase();
+  if (!term) {
+    await ctx.reply("Usage: /findproduct <title part or product id>");
+    return;
+  }
+
+  const products = await services.catalogService.listAllProducts();
+  const matches = products.filter((product) =>
+    product.id === rawTerm.trim() || product.title.toLowerCase().includes(term)
+  );
+
+  if (matches.length === 0) {
+    await ctx.reply("No products matched that query.");
+    return;
+  }
+
+  const rows = matches.slice(0, 10).map((product) => [
+    Markup.button.callback(`${product.active ? "Active" : "Paused"} - ${product.title}`, `admin:product:view:${product.id}`)
+  ]);
+  rows.push([Markup.button.callback("Back to Products", "admin:products")]);
+
+  await ctx.reply(
+    `Found ${matches.length} matching product(s).`,
+    Markup.inlineKeyboard(rows)
+  );
+}
+
+async function findOrderByTerm(ctx: BotContext, services: AppServices, rawTerm: string): Promise<void> {
+  const term = rawTerm.trim();
+  if (!term) {
+    await ctx.reply("Usage: /findorder <order id, tx hash, or product title part>");
+    return;
+  }
+
+  const exactOrder = await services.store.orders.findById(term);
+  if (exactOrder) {
+    await showOrderDetail(ctx, services, exactOrder.id);
+    return;
+  }
+
+  const txMatches = await services.store.payments.findByTxHash(term);
+  if (txMatches.length > 0) {
+    const rows = txMatches.slice(0, 10).map((payment) => [
+      Markup.button.callback(`Order ${payment.orderId.slice(0, 8)} - tx match`, `admin:order:view:${payment.orderId}`)
+    ]);
+    rows.push([Markup.button.callback("Back to Orders", "admin:orders")]);
+    await ctx.reply(`Found ${txMatches.length} order(s) with that tx hash.`, Markup.inlineKeyboard(rows));
+    return;
+  }
+
+  const allOrders = await services.store.orders.listByStates([...orderStates], 500);
+  const lowered = term.toLowerCase();
+  const candidates: Array<{ id: string; state: string; title: string; amount: string }> = [];
+
+  for (const order of allOrders) {
+    const snapshot = await services.store.snapshots.findByOrderId(order.id);
+    const title = snapshot?.title ?? "Unknown product";
+    if (
+      order.id.toLowerCase().includes(lowered) ||
+      title.toLowerCase().includes(lowered) ||
+      (order.paymentTxHash?.toLowerCase().includes(lowered) ?? false)
+    ) {
+      candidates.push({
+        id: order.id,
+        state: order.state,
+        title,
+        amount: order.quotedAmountXmr
+      });
+    }
+  }
+
+  if (candidates.length === 0) {
+    await ctx.reply("No orders matched that query.");
+    return;
+  }
+
+  const rows = candidates.slice(0, 10).map((order) => [
+    Markup.button.callback(`${order.state} - ${order.title} - ${order.amount} XMR`, `admin:order:view:${order.id}`)
+  ]);
+  rows.push([Markup.button.callback("Back to Orders", "admin:orders")]);
+
+  await ctx.reply(`Found ${candidates.length} matching order(s).`, Markup.inlineKeyboard(rows));
+}
+
 export function registerAdminHandlers(bot: Telegraf<BotContext>, services: AppServices): void {
   bot.command("admin", async (ctx) => {
     if (await assertAdmin(ctx, services)) {
@@ -60,6 +199,34 @@ export function registerAdminHandlers(bot: Telegraf<BotContext>, services: AppSe
     if (await assertAdmin(ctx, services)) {
       await sendPagedOrderList(ctx, services, "all", 0);
     }
+  });
+
+  bot.command("findproduct", async (ctx) => {
+    if (!(await assertAdmin(ctx, services))) {
+      return;
+    }
+    await findProductByTerm(ctx, services, getCommandArg(ctx));
+  });
+
+  bot.command("findorder", async (ctx) => {
+    if (!(await assertAdmin(ctx, services))) {
+      return;
+    }
+    await findOrderByTerm(ctx, services, getCommandArg(ctx));
+  });
+
+  bot.command("recover", async (ctx) => {
+    if (!(await assertAdmin(ctx, services))) {
+      return;
+    }
+
+    const orderId = getCommandArg(ctx);
+    if (!orderId) {
+      await ctx.reply("Usage: /recover <order-id>");
+      return;
+    }
+
+    await runOrderRecovery(ctx, services, orderId);
   });
 
   bot.command("stock", async (ctx) => {
@@ -291,6 +458,21 @@ export function registerAdminHandlers(bot: Telegraf<BotContext>, services: AppSe
     }
 
     await showOrderDetail(ctx, services, orderId);
+  });
+
+  bot.action(/^admin:order:recover:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    if (!(await assertAdmin(ctx, services))) {
+      return;
+    }
+
+    const orderId = getMatchValue(ctx.match);
+    if (!orderId) {
+      await ctx.reply("That order reference is invalid.", adminMenuKeyboard());
+      return;
+    }
+
+    await runOrderRecovery(ctx, services, orderId);
   });
 
   bot.action(/^admin:order:redeliver:(.+)$/, async (ctx) => {

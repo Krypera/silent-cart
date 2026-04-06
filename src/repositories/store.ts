@@ -122,6 +122,7 @@ export interface PaymentEventStore {
     confirmedAt: Date | null;
   }): Promise<PaymentEvent>;
   findByOrderId(orderId: string): Promise<PaymentEvent[]>;
+  findByTxHash(txHash: string): Promise<PaymentEvent[]>;
   listRecent(limit: number): Promise<PaymentEvent[]>;
 }
 

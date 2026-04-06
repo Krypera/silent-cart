@@ -18,6 +18,9 @@ export class WalletHealthService {
     lastSuccessfulScanAt: string | null;
     pendingOrderCount: number;
     underpaidOrderCount: number;
+    manualReviewCount: number;
+    failedFulfillmentCount: number;
+    lastFulfilledOrderAt: string | null;
     recentDetectionActivity: Array<{ txHash: string; orderId: string; confirmations: number }>;
   }> {
     let walletRpcReachable = true;
@@ -46,10 +49,13 @@ export class WalletHealthService {
       }
     }
 
-    const [lastScan, pendingOrderCount, underpaidOrderCount, recentActivity] = await Promise.all([
+    const [lastScan, pendingOrderCount, underpaidOrderCount, manualReviewRecords, failedRecords, lastFulfilled, recentActivity] = await Promise.all([
       this.store.settings.get<{ lastSuccessfulScanAt: string }>("wallet.last_scan_at"),
       this.store.orders.countOpenOrders(),
       this.store.orders.countByState("underpaid"),
+      this.store.fulfillments.listByStatus("manual_review"),
+      this.store.fulfillments.listByStatus("failed"),
+      this.store.orders.listRecent(1, 0, ["fulfilled"]),
       this.store.payments.listRecent(5)
     ]);
 
@@ -62,6 +68,9 @@ export class WalletHealthService {
       lastSuccessfulScanAt: lastScan?.lastSuccessfulScanAt ?? null,
       pendingOrderCount,
       underpaidOrderCount,
+      manualReviewCount: manualReviewRecords.length,
+      failedFulfillmentCount: failedRecords.length,
+      lastFulfilledOrderAt: lastFulfilled[0]?.fulfilledAt?.toISOString() ?? null,
       recentDetectionActivity: recentActivity.map((payment) => ({
         txHash: payment.txHash,
         orderId: payment.orderId,

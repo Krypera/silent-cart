@@ -298,8 +298,11 @@ export async function sendWalletView(ctx: BotContext, services: AppServices): Pr
       health.daemonSynchronized === null ? "unknown" : health.daemonSynchronized ? "yes" : "no"
     }`,
     `Last successful scan: ${health.lastSuccessfulScanAt ?? "never"}`,
+    `Last fulfilled order at: ${health.lastFulfilledOrderAt ?? "never"}`,
     `Pending orders: ${health.pendingOrderCount}`,
     `Underpaid orders: ${health.underpaidOrderCount}`,
+    `Manual review queue: ${health.manualReviewCount}`,
+    `Failed fulfillments: ${health.failedFulfillmentCount}`,
     "",
     "Recent detection activity"
   ];
@@ -436,7 +439,8 @@ export async function showOrderDetail(
     `Quote expiry: ${order.quoteExpiresAt.toISOString()}`,
     `Payment tx: ${order.paymentTxHash ?? "not seen"}`,
     `Retention link active: ${link?.telegramUserId ? "yes" : "no"}`,
-    `Fulfillment status: ${fulfillment?.status ?? "not started"}`
+    `Fulfillment status: ${fulfillment?.status ?? "not started"}`,
+    `Fulfillment attempts: ${fulfillment?.attempts ?? 0}`
   ];
 
   if (fulfillment?.lastErrorCode) {
@@ -444,6 +448,9 @@ export async function showOrderDetail(
   }
 
   const rows: ButtonRow[] = [];
+  if (order.state === "confirmed" || fulfillment?.status === "manual_review" || fulfillment?.status === "failed") {
+    rows.push([Markup.button.callback("Run Recovery", `admin:order:recover:${order.id}`)]);
+  }
   if (order.state === "fulfilled" && link?.telegramUserId) {
     rows.push([Markup.button.callback("Manual Re-delivery", `admin:order:redeliver:${order.id}`)]);
   }

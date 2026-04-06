@@ -21,7 +21,8 @@
     "ops:reencrypt": "tsx src/ops/reencryptPayloads.ts",
     "ops:doctor": "tsx src/ops/doctor.ts",
     "ops:generate-key": "tsx src/ops/generateEncryptionKey.ts",
-    "ops:seed-demo": "tsx src/ops/seedDemo.ts"
+    "ops:seed-demo": "tsx src/ops/seedDemo.ts",
+    "ops:backup:export": "tsx src/ops/exportBackup.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

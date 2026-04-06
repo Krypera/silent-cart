@@ -33,8 +33,11 @@ async function main(): Promise<void> {
     daemonHeight: null,
     daemonTargetHeight: null,
     lastSuccessfulScanAt: null,
+    lastFulfilledOrderAt: null,
     pendingOrderCount: null,
-    underpaidOrderCount: null
+    underpaidOrderCount: null,
+    manualReviewCount: null,
+    failedFulfillmentCount: null
   };
 
   try {
@@ -82,8 +85,11 @@ async function main(): Promise<void> {
       snapshot.daemonHeight = health.daemonHeight;
       snapshot.daemonTargetHeight = health.daemonTargetHeight;
       snapshot.lastSuccessfulScanAt = health.lastSuccessfulScanAt;
+      snapshot.lastFulfilledOrderAt = health.lastFulfilledOrderAt;
       snapshot.pendingOrderCount = health.pendingOrderCount;
       snapshot.underpaidOrderCount = health.underpaidOrderCount;
+      snapshot.manualReviewCount = health.manualReviewCount;
+      snapshot.failedFulfillmentCount = health.failedFulfillmentCount;
     }
   } finally {
     await database.close();

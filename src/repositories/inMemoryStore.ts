@@ -219,6 +219,10 @@ export class InMemoryStore implements SilentCartStore {
       [...this.paymentMap.values()]
         .filter((payment) => payment.orderId === orderId)
         .sort((left, right) => left.firstSeenAt.getTime() - right.firstSeenAt.getTime()),
+    findByTxHash: async (txHash: string) =>
+      [...this.paymentMap.values()]
+        .filter((payment) => payment.txHash === txHash)
+        .sort((left, right) => left.firstSeenAt.getTime() - right.firstSeenAt.getTime()),
     listRecent: async (limit: number) =>
       [...this.paymentMap.values()]
         .sort((left, right) => right.lastSeenAt.getTime() - left.lastSeenAt.getTime())

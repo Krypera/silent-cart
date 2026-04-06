@@ -47,6 +47,17 @@ export function createPaymentsRepository(executor: Queryable): SilentCartStore["
       );
       return result.rows.map(mapPayment);
     },
+    findByTxHash: async (txHash) => {
+      const result = await executor.query<PaymentEventRow>(
+        `
+          select * from payment_events
+          where tx_hash = $1
+          order by first_seen_at asc
+        `,
+        [txHash]
+      );
+      return result.rows.map(mapPayment);
+    },
     listRecent: async (limit) => {
       const result = await executor.query<PaymentEventRow>(
         `

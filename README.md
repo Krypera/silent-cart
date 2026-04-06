@@ -86,11 +86,14 @@ SilentCart keeps operator work inside a Telegram private chat.
 - `/addproduct` starts a guided creation wizard
 - `/products` lists catalog items in pages with edit and activate/deactivate controls
 - `/orders` lists recent orders in pages with quick state filters and eligible recovery actions
+- `/findorder <query>` searches orders by order ID, tx hash, or product title hint
 - `/stock` shows license inventory and lets admins add keys safely
+- `/findproduct <query>` searches products by title or product ID
 - `/wallet` shows wallet-rpc reachability, scan freshness, sync hints, and recent detections
 - `/stats` shows lightweight sales counters
 - `/settings` shows retention settings and lets the seller edit the custom "Why I accept Monero" message
 - `/cancel` stops any in-progress admin flow cleanly
+- `/recover <order-id>` runs an automatic recovery action for eligible orders
 - Guided admin drafts persist in PostgreSQL, so a restart does not silently discard an in-progress operator action
 
 Customer helpers:
@@ -264,6 +267,22 @@ npm run ops:seed-demo
 ```
 
 This is useful right after migrations and before creating your real catalog.
+
+### Export an encrypted operational backup
+
+To export an encrypted backup of operational records:
+
+```bash
+npm run ops:backup:export
+```
+
+By default this keeps `telegram_user_id` redacted in retention links and writes an encrypted file under `backups/`.
+
+Optional environment flags:
+
+- `BACKUP_INCLUDE_IDENTITY_LINKS=true` to include raw identity links
+- `BACKUP_EXPORT_KEY=<64-hex-key>` to use a dedicated backup key instead of `FULFILLMENT_ENCRYPTION_KEY`
+- `BACKUP_EXPORT_OUTPUT_DIR=<path>` to change output location
 
 ### Run Postgres smoke tests
 

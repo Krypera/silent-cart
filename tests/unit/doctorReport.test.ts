@@ -20,8 +20,11 @@ function buildSnapshot(overrides: Partial<DoctorSnapshot> = {}): DoctorSnapshot 
     daemonHeight: 222,
     daemonTargetHeight: 222,
     lastSuccessfulScanAt: "2026-04-06T12:00:00.000Z",
+    lastFulfilledOrderAt: "2026-04-06T12:05:00.000Z",
     pendingOrderCount: 0,
     underpaidOrderCount: 0,
+    manualReviewCount: 0,
+    failedFulfillmentCount: 0,
     ...overrides
   };
 }
@@ -46,7 +49,9 @@ describe("doctorReport", () => {
       syncedAdminCount: 0,
       pendingOrderCount: 2,
       lastSuccessfulScanAt: null,
-      underpaidOrderCount: 1
+      underpaidOrderCount: 1,
+      manualReviewCount: 1,
+      failedFulfillmentCount: 1
     });
     const assessment = assessDoctorSnapshot(snapshot);
     const report = renderDoctorReport(snapshot, assessment);
