@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest a focused improvement for SilentCart
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Explain the operator or buyer problem this feature would solve.
+      placeholder: Operators need a better way to inspect stale wallet health without waiting for alerts.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the change you want to see.
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Privacy, security, or complexity tradeoffs
+      description: Call out any important tradeoffs, especially if the idea affects privacy or Monero-first scope.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Confirmation
+      options:
+        - label: I checked that this request fits the Monero-only, Telegram-native, privacy-first direction of the project.
+          required: true
