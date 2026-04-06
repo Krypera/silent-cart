@@ -5,6 +5,8 @@ import type { BotContext } from "../session.js";
 import { buildCatalogEntry, customerErrorMessage, getMatchValue, productTypeLabel } from "./common.js";
 import { sendOpenCheckoutsList, sendCheckoutInstructions } from "./checkoutHandlers.js";
 
+const PROJECT_GITHUB_URL = "https://github.com/Krypera/silent-cart";
+
 async function buildCatalogMessage(services: AppServices): Promise<{
   text: string;
   keyboard: ReturnType<typeof Markup.inlineKeyboard>;
@@ -18,7 +20,8 @@ async function buildCatalogMessage(services: AppServices): Promise<{
       keyboard: Markup.inlineKeyboard([
         [Markup.button.callback("Monero Guide", "guide:open")],
         [Markup.button.callback("Open Checkouts", "checkout:list")],
-        [Markup.button.callback("My Deliveries", "delivery:list")]
+        [Markup.button.callback("My Deliveries", "delivery:list")],
+        [Markup.button.url("GitHub", PROJECT_GITHUB_URL)]
       ])
     };
   }
@@ -44,12 +47,14 @@ async function buildCatalogMessage(services: AppServices): Promise<{
     );
   }
 
-  const rows = productViews
+  const rows: Array<Array<ReturnType<typeof Markup.button.callback> | ReturnType<typeof Markup.button.url>>> =
+    productViews
     .filter((product) => product.pricingAvailable)
     .map((product) => [Markup.button.callback(product.title, `catalog:view:${product.id}`)]);
   rows.push([Markup.button.callback("Open Checkouts", "checkout:list")]);
   rows.push([Markup.button.callback("My Deliveries", "delivery:list")]);
   rows.push([Markup.button.callback("Monero Guide", "guide:open")]);
+  rows.push([Markup.button.url("GitHub", PROJECT_GITHUB_URL)]);
 
   return {
     text: lines.join("\n").trim(),
@@ -99,9 +104,13 @@ async function showProductDetail(
     view.pricingAvailable && view.xmrAmount
       ? [
           [Markup.button.callback("Buy with Monero", `catalog:buy:${product.id}`)],
+          [Markup.button.url("GitHub", PROJECT_GITHUB_URL)],
           [Markup.button.callback("Back to Catalog", "catalog:back")]
         ]
-      : [[Markup.button.callback("Back to Catalog", "catalog:back")]];
+      : [
+          [Markup.button.url("GitHub", PROJECT_GITHUB_URL)],
+          [Markup.button.callback("Back to Catalog", "catalog:back")]
+        ];
 
   await ctx.reply(lines.join("\n"), Markup.inlineKeyboard(rows));
 }
