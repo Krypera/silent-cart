@@ -6,12 +6,14 @@ import type {
   WalletHeightInfo,
   WalletVersionInfo
 } from "./types.js";
+import { fetchWithTimeout, isTimeoutError } from "../utils/http.js";
 
 interface WalletRpcConfig {
   url: string;
   username: string;
   password: string;
   accountIndex: number;
+  timeoutMs?: number;
 }
 
 interface JsonRpcEnvelope<T> {
@@ -36,6 +38,10 @@ interface WalletTransferItem {
 
 export class MoneroWalletRpcClient implements MoneroPaymentAdapter {
   public constructor(private readonly config: WalletRpcConfig) {}
+
+  private get timeoutMs() {
+    return this.config.timeoutMs ?? 10000;
+  }
 
   public async createSubaddress(label: string): Promise<SubaddressAllocation> {
     const result = await this.callRpc<{
@@ -105,41 +111,54 @@ export class MoneroWalletRpcClient implements MoneroPaymentAdapter {
   }
 
   private async callRpc<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
-    const headers = new Headers({
-      "content-type": "application/json"
-    });
+    try {
+      const headers = new Headers({
+        "content-type": "application/json"
+      });
 
-    if (this.config.username || this.config.password) {
-      headers.set(
-        "authorization",
-        `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString("base64")}`
+      if (this.config.username || this.config.password) {
+        headers.set(
+          "authorization",
+          `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString("base64")}`
+        );
+      }
+
+      const response = await fetchWithTimeout(this.config.url, {
+        timeoutMs: this.timeoutMs,
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: "silentcart",
+          method,
+          params
+        })
+      });
+
+      if (!response.ok) {
+        throw new ExternalServiceError(`wallet-rpc request failed with status ${response.status}`);
+      }
+
+      const json = (await response.json()) as JsonRpcEnvelope<T>;
+      if (json.error) {
+        throw new ExternalServiceError(`wallet-rpc error ${json.error.code}: ${json.error.message}`);
+      }
+
+      if (!json.result) {
+        throw new ExternalServiceError(`wallet-rpc method ${method} returned no result.`);
+      }
+
+      return json.result;
+    } catch (error) {
+      if (error instanceof ExternalServiceError) {
+        throw error;
+      }
+      if (isTimeoutError(error)) {
+        throw new ExternalServiceError(`wallet-rpc request timed out after ${this.timeoutMs}ms.`);
+      }
+      throw new ExternalServiceError(
+        error instanceof Error ? `wallet-rpc request failed: ${error.message}` : "wallet-rpc request failed."
       );
     }
-
-    const response = await fetch(this.config.url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: "silentcart",
-        method,
-        params
-      })
-    });
-
-    if (!response.ok) {
-      throw new ExternalServiceError(`wallet-rpc request failed with status ${response.status}`);
-    }
-
-    const json = (await response.json()) as JsonRpcEnvelope<T>;
-    if (json.error) {
-      throw new ExternalServiceError(`wallet-rpc error ${json.error.code}: ${json.error.message}`);
-    }
-
-    if (!json.result) {
-      throw new ExternalServiceError(`wallet-rpc method ${method} returned no result.`);
-    }
-
-    return json.result;
   }
 }

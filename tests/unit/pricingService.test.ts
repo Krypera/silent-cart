@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { PricingService } from "../../src/services/pricingService.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { CoinGeckoRateProvider, PricingService } from "../../src/services/pricingService.js";
 import { StaticRateProvider } from "../helpers/harness.js";
 
 describe("PricingService", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
   it("freezes USD anchored quotes into XMR", async () => {
     const pricingService = new PricingService(new StaticRateProvider(150), true);
 
@@ -50,5 +55,22 @@ describe("PricingService", () => {
 
     expect(view.xmrAmount).toBe("0.1");
     expect(view.usdReference).toBeNull();
+  });
+
+  it("surfaces CoinGecko timeouts as upstream service errors", async () => {
+    const timeoutError = new Error("request timed out");
+    timeoutError.name = "TimeoutError";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(timeoutError) as typeof fetch
+    );
+
+    const rateProvider = new CoinGeckoRateProvider("https://rates.example", 1500);
+
+    await expect(rateProvider.getUsdPerXmr()).rejects.toMatchObject({
+      code: "external_service_error",
+      message: "Exchange rate request timed out after 1500ms."
+    });
   });
 });

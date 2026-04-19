@@ -25,6 +25,9 @@ const envSchema = z.object({
   MONEROD_RPC_USERNAME: z.string().optional().default(""),
   MONEROD_RPC_PASSWORD: z.string().optional().default(""),
   COINGECKO_API_BASE_URL: z.string().url().default("https://api.coingecko.com/api/v3"),
+  COINGECKO_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  WALLET_RPC_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  MONEROD_RPC_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
   PAYMENT_SCAN_INTERVAL_MS: z.coerce.number().int().positive().default(15000),
   ORDER_EXPIRY_INTERVAL_MS: z.coerce.number().int().positive().default(30000),
   RETENTION_PURGE_INTERVAL_MS: z.coerce.number().int().positive().default(3600000),
@@ -60,16 +63,19 @@ export function loadEnvConfig() {
     walletRpc: {
       url: parsed.XMR_WALLET_RPC_URL,
       username: parsed.XMR_WALLET_RPC_USERNAME,
-      password: parsed.XMR_WALLET_RPC_PASSWORD
+      password: parsed.XMR_WALLET_RPC_PASSWORD,
+      timeoutMs: parsed.WALLET_RPC_TIMEOUT_MS
     },
     monerodRpc: parsed.MONEROD_RPC_URL
       ? {
           url: parsed.MONEROD_RPC_URL,
           username: parsed.MONEROD_RPC_USERNAME,
-          password: parsed.MONEROD_RPC_PASSWORD
+          password: parsed.MONEROD_RPC_PASSWORD,
+          timeoutMs: parsed.MONEROD_RPC_TIMEOUT_MS
         }
       : null,
     coinGeckoApiBaseUrl: parsed.COINGECKO_API_BASE_URL,
+    coinGeckoRequestTimeoutMs: parsed.COINGECKO_REQUEST_TIMEOUT_MS,
     paymentScanIntervalMs: parsed.PAYMENT_SCAN_INTERVAL_MS,
     orderExpiryIntervalMs: parsed.ORDER_EXPIRY_INTERVAL_MS,
     retentionPurgeIntervalMs: parsed.RETENTION_PURGE_INTERVAL_MS,

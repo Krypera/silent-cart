@@ -67,13 +67,15 @@ async function main(): Promise<void> {
           url: env.walletRpc.url,
           username: env.walletRpc.username,
           password: env.walletRpc.password,
-          accountIndex: env.xmrAccountIndex
+          accountIndex: env.xmrAccountIndex,
+          timeoutMs: env.walletRpc.timeoutMs
         }),
         env.monerodRpc
           ? new MonerodRpcClient({
               url: env.monerodRpc.url,
               username: env.monerodRpc.username,
-              password: env.monerodRpc.password
+              password: env.monerodRpc.password,
+              timeoutMs: env.monerodRpc.timeoutMs
             })
           : null
       );

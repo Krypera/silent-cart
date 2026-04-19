@@ -44,7 +44,10 @@ export function createAppServices(telegram: Telegram, env = loadEnvConfig()): Ap
   const database = new Database(env.databaseUrl);
   const store = createPostgresStore(database);
   const encryptionService = new EncryptionService(env.fulfillmentEncryptionKey);
-  const rateProvider = new CoinGeckoRateProvider(env.coinGeckoApiBaseUrl);
+  const rateProvider = new CoinGeckoRateProvider(
+    env.coinGeckoApiBaseUrl,
+    env.coinGeckoRequestTimeoutMs
+  );
   const pricingService = new PricingService(rateProvider, env.usdReferenceEnabled);
   const catalogService = new CatalogService(store, encryptionService);
   const telegramMessenger = new TelegramDeliveryMessenger(telegram, {
@@ -56,7 +59,8 @@ export function createAppServices(telegram: Telegram, env = loadEnvConfig()): Ap
     url: env.walletRpc.url,
     username: env.walletRpc.username,
     password: env.walletRpc.password,
-    accountIndex: env.xmrAccountIndex
+    accountIndex: env.xmrAccountIndex,
+    timeoutMs: env.walletRpc.timeoutMs
   });
   const retentionService = new RetentionService(store, env.retentionDays);
   const orderService = new OrderService(
@@ -82,12 +86,13 @@ export function createAppServices(telegram: Telegram, env = loadEnvConfig()): Ap
     store,
     moneroAdapter,
     env.monerodRpc
-      ? new MonerodRpcClient({
-          url: env.monerodRpc.url,
-          username: env.monerodRpc.username,
-          password: env.monerodRpc.password
-        })
-      : null
+        ? new MonerodRpcClient({
+            url: env.monerodRpc.url,
+            username: env.monerodRpc.username,
+            password: env.monerodRpc.password,
+            timeoutMs: env.monerodRpc.timeoutMs
+          })
+        : null
   );
   const fulfillmentEngine = new FulfillmentEngine(
     store,

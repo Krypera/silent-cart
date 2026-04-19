@@ -1,5 +1,6 @@
 import type { PricingMode, Product, PublicProductView, QuoteResult } from "../domain/models.js";
-import { ValidationError } from "../domain/errors.js";
+import { ExternalServiceError, ValidationError } from "../domain/errors.js";
+import { fetchWithTimeout, isTimeoutError } from "../utils/http.js";
 import { atomicToXmr, formatUsdCents, usdCentsToAtomic } from "../utils/money.js";
 
 export interface ExchangeRateProvider {
@@ -9,38 +10,54 @@ export interface ExchangeRateProvider {
 export class CoinGeckoRateProvider implements ExchangeRateProvider {
   private cachedValue: { rate: number; expiresAt: number } | null = null;
 
-  public constructor(private readonly apiBaseUrl: string) {}
+  public constructor(
+    private readonly apiBaseUrl: string,
+    private readonly timeoutMs = 10000
+  ) {}
 
   public async getUsdPerXmr(): Promise<number> {
     if (this.cachedValue && this.cachedValue.expiresAt > Date.now()) {
       return this.cachedValue.rate;
     }
 
-    const response = await fetch(
-      `${this.apiBaseUrl}/simple/price?ids=monero&vs_currencies=usd`,
-      {
-        headers: {
-          accept: "application/json"
+    try {
+      const response = await fetchWithTimeout(
+        `${this.apiBaseUrl}/simple/price?ids=monero&vs_currencies=usd`,
+        {
+          timeoutMs: this.timeoutMs,
+          headers: {
+            accept: "application/json"
+          }
         }
+      );
+
+      if (!response.ok) {
+        throw new ExternalServiceError(`Exchange rate request failed with status ${response.status}`);
       }
-    );
 
-    if (!response.ok) {
-      throw new Error(`Exchange rate request failed with status ${response.status}`);
+      const body = (await response.json()) as { monero?: { usd?: number } };
+      const rate = body.monero?.usd;
+      if (!rate || rate <= 0) {
+        throw new ExternalServiceError("Exchange rate provider returned an invalid XMR/USD rate.");
+      }
+
+      this.cachedValue = {
+        rate,
+        expiresAt: Date.now() + 60_000
+      };
+
+      return rate;
+    } catch (error) {
+      if (error instanceof ExternalServiceError) {
+        throw error;
+      }
+      if (isTimeoutError(error)) {
+        throw new ExternalServiceError(`Exchange rate request timed out after ${this.timeoutMs}ms.`);
+      }
+      throw new ExternalServiceError(
+        error instanceof Error ? `Exchange rate request failed: ${error.message}` : "Exchange rate request failed."
+      );
     }
-
-    const body = (await response.json()) as { monero?: { usd?: number } };
-    const rate = body.monero?.usd;
-    if (!rate || rate <= 0) {
-      throw new Error("Exchange rate provider returned an invalid XMR/USD rate.");
-    }
-
-    this.cachedValue = {
-      rate,
-      expiresAt: Date.now() + 60_000
-    };
-
-    return rate;
   }
 }
 
